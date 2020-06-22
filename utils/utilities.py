@@ -32,7 +32,6 @@ def load_pickle(load_from):
 def load_bilingual_embeddings(file_name, file_name2, word2idx, embeddings_size, save_to=None):
     if os.path.exists(save_to):
         pretrained_embeddings = torch.from_numpy(np.load(save_to))
-        
     else:
         fin = io.open(file_name, 'r', encoding='utf-8', newline='\n', errors='ignore')
         data = {}

@@ -48,7 +48,8 @@ if __name__ == '__main__':
         save_to = os.path.join(os.getcwd(), 'model',
                                'vocab_embeddings_vector.npy')
         embeddings_path = os.path.join(os.getcwd(), 'resources', 'wiki.en.vec')
-        embeddings_path1 = os.path.join(os.getcwd(), 'resources', 'wiki.it.vec')
+        embeddings_path1 = os.path.join(
+            os.getcwd(), 'resources', 'wiki.it.vec')
         pretrained_embeddings_ = load_bilingual_embeddings(embeddings_path,
                                                            embeddings_path1,
                                                            word2idx,
@@ -57,12 +58,20 @@ if __name__ == '__main__':
 
     if pretrained_pos_embeddings:
         # model = train_pos2vec(training_set.pos_x, 10, 300, 1e-3, 30)
-        pos_embeddings_path = os.path.join(os.getcwd(), 'model', "pos_embeddings.npy")
+        pos_embeddings_path = os.path.join(
+            os.getcwd(), 'model', "pos_embeddings.npy")
         # save_pos_embeddings(model, pos_embeddings_path)
-        pos_embeddings_ = load_pos_embeddings(pos_embeddings_path, pos2idx, 300)
+        pos_embeddings_ = load_pos_embeddings(
+            pos_embeddings_path, pos2idx, 300)
 
     # Set Hyper-parameters
     batch_size = 128
+    # Prepare data loaders
+    train_dataset_ = DataLoader(dataset=training_set, batch_size=batch_size,
+                                collate_fn=TSVDatasetParser.pad_batch,
+                                shuffle=True)
+    dev_dataset_ = DataLoader(dataset=dev_set, batch_size=batch_size,
+                              collate_fn=TSVDatasetParser.pad_batch)
 
     if baseline_model:
         name_ = 'BiLSTM Model'
@@ -70,12 +79,6 @@ if __name__ == '__main__':
                              pos2idx, pretrained_embeddings_, batch_size)
         hp._print_info()
 
-        # Prepare data loaders
-        train_dataset_ = DataLoader(dataset=training_set, batch_size=batch_size,
-                                    collate_fn=TSVDatasetParser.pad_batch,
-                                    shuffle=True)
-        dev_dataset_ = DataLoader(dataset=dev_set, batch_size=batch_size,
-                                  collate_fn=TSVDatasetParser.pad_batch)
         # Create and train model
         model = BaselineModel(hp).to(device)
         model.print_summary()
@@ -98,12 +101,6 @@ if __name__ == '__main__':
                              pos_embeddings_, batch_size)
         hp._print_info()
 
-        # Prepare data loaders
-        train_dataset_ = DataLoader(dataset=training_set, batch_size=batch_size,
-                                    collate_fn=TSVDatasetParser.pad_batch,
-                                    shuffle=True)
-        dev_dataset_ = DataLoader(dataset=dev_set, batch_size=batch_size,
-                                  collate_fn=TSVDatasetParser.pad_batch)
         # Create and train model
         model = CRF_Model(hp).to(device)
         model.print_summary()
@@ -123,5 +120,3 @@ if __name__ == '__main__':
 
     evaluator = Evaluator(model, dev_dataset_)
     evaluator.check_performance(idx2label)
-
-    
