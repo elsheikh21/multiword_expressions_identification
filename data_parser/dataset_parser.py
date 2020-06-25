@@ -5,15 +5,17 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import Dataset
 from tqdm.auto import tqdm
+from transformers import AutoTokenizer
 from utils import load_pickle, save_pickle
 
 nltk.download('averaged_perceptron_tagger', quiet=True)
 
 
 class TSVDatasetParser(Dataset):
-    def __init__(self, _path, _device, is_testing_data=False):
+    def __init__(self, _path, _device, is_testing_data=False, tokenize_for_bert=False):
         self.encoded_data = []
         self.is_test_data = is_testing_data
+        self.use_bert_tokenizer = tokenize_for_bert
         self.device = _device
         self.read_dataset(_path)
 
@@ -75,7 +77,7 @@ class TSVDatasetParser(Dataset):
             data_x_stoi, pos_x_stoi = [], []
             for sentence, pos_sentence in tqdm(zip(self.data_x, self.pos_x),
                                                desc='Indexing Data',
-                                               leave=False,
+                                               leave=True,
                                                total=len(self.data_x)):
                 data_x_stoi.append(torch.LongTensor(
                     [word2idx.get(word, 1) for word in sentence]).to(self.device))
@@ -87,9 +89,25 @@ class TSVDatasetParser(Dataset):
                     {'inputs': data_x_stoi[i], 'pos': pos_x_stoi[i], 'outputs': data_x_stoi[i]})
         else:
             data_x_stoi, pos_x_stoi, data_y_stoi = [], [], []
-            for sentence, pos_sentence, labels in tqdm(zip(self.data_x, self.pos_x, self.data_y), desc='Indexing Data', leave=False, total=len(self.data_x)):
-                data_x_stoi.append(torch.LongTensor(
-                    [word2idx.get(word, 1) for word in sentence]).to(self.device))
+            model_name = "bert-base-multilingual-cased"
+            bert_tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+            for sentence, pos_sentence, labels in tqdm(zip(self.data_x, self.pos_x, self.data_y), desc='Indexing Data', leave=True, total=len(self.data_x)):
+                if self.use_bert_tokenizer == False:
+                    data_x_stoi.append(torch.LongTensor(
+                        [word2idx.get(word, 1) for word in sentence]).to(self.device))
+                elif self.use_bert_tokenizer == True:
+                    # print("sentence is", sentence)
+                    encoding = bert_tokenizer.encode_plus(
+                    sentence,
+                    add_special_tokens=True, # Add '[CLS]' and '[SEP]'
+                    return_token_type_ids=False,
+                    return_attention_mask=False,
+                    return_tensors='pt'  # Return PyTorch tensors
+                    )      
+                    # print("Tensor is", encoding['input_ids'])
+                    data_x_stoi.append(torch.squeeze(encoding['input_ids']).to(self.device))   
+
                 pos_x_stoi.append(torch.LongTensor(
                     [pos2idx.get(pos, 1) for pos in pos_sentence]).to(self.device))
                 data_y_stoi.append(torch.LongTensor(
