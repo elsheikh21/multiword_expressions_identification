@@ -85,7 +85,7 @@ def fetch_sense_info(multiword_token, data=None, is_babelnet=True):
 
 
 def print_extracted_mwes(test_set, preds):
-    for i in range(len(preds)):
+    for i in tqdm(range(len(preds)), desc='Printing Extracted MWEs', leave=False):
         curr_sentence = test_set.data_x[i]
         prediction_list = preds[i][:len(curr_sentence)]
         sentence_id = curr_sentence[0]
