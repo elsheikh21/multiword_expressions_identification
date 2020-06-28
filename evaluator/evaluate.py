@@ -15,7 +15,6 @@ def flat_list(l: List[List[Any]]) -> List[Any]:
 
 
 class Evaluator:
-    # TODO: Check predict sentences torch.no_grad
     def __init__(self, model, test_dataset, t_data, idx2label):
         self.model = model
         self.model.eval()
