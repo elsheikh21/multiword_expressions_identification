@@ -71,7 +71,7 @@ def fetch_sense_info(multiword_token, data=None, is_babelnet=True):
                 open(os.path.join(os.getcwd(), "it_en_lemma2synsets.json")))
         synsets = [val for key, val in data.items(
         ) if lemma_word.replace(' ', '_') in key]
-        return ' '.join(flat_list(synsets))
+        return ' '.join(flat_list(synsets)[:1])
     else:
         synsets = wn.synsets(lemma_word)
         if synsets is None or len(synsets) == 0:
@@ -81,14 +81,15 @@ def fetch_sense_info(multiword_token, data=None, is_babelnet=True):
         for synset in synsets:
             sense_info.append(
                 'wn:' + str(synset.offset()).zfill(8) + synset.pos())
-        return ' '.join(sense_info)
+        return ' '.join(sense_info[:1])
 
 
 def print_extracted_mwes(test_set, preds):
-    for i in tqdm(range(len(preds)), desc='Printing Extracted MWEs', leave=False):
+    # for i in tqdm(range(len(preds)), desc='Printing Extracted MWEs', leave=False):
+    for i in range(len(preds)):
         curr_sentence = test_set.data_x[i]
         prediction_list = preds[i][:len(curr_sentence)]
-        sentence_id = curr_sentence[0]
+        sentence_id = i  + 1  # curr_sentence[0]
         indices = [i for i, x in enumerate(prediction_list) if x == "B"]
         if indices == []:
             continue
@@ -104,11 +105,17 @@ def print_extracted_mwes(test_set, preds):
                     break
         for mwe in mwes:
             start_token = mwe[0]
-            end_token = mwe[1] + 1
-            mwe_ = ' '.join([curr_sentence[i]
-                             for i in range(start_token, end_token)])
-            sense_info = fetch_sense_info(mwe_)
+            end_token = mwe[1]
+            mwe_words = [curr_sentence[i] for i in range(start_token,
+                                                         end_token + 1)]
+            mwe_ = ' '.join(mwe_words)  # To have the MWE words concatenated
+            # Fetch sense information per word in MWEs
+            sense_info_per_mwe_word = [fetch_sense_info(word)
+                                       for word in mwe_words]
+            sense_info = ' '.join(sense_info_per_mwe_word)
             print(f'{sentence_id}\t{start_token}\t{end_token}\t{mwe_}\t{sense_info}')
+            # To print without any sense information
+            # print(f'{sentence_id}\t{start_token}\t{end_token}\t{mwe_}')
 
 
 class TSVDatasetParser(Dataset):
@@ -323,10 +330,7 @@ class CRF_Model(nn.Module):
         torch.save(self.state_dict(), model_checkpoint)
 
     def _load(self, path):
-        if self.device == 'cuda':
-            state_dict = torch.load(path)
-        else:
-            state_dict = torch.load(path, map_location=self.device)
+        state_dict = torch.load(path) if self.device == 'cuda' else torch.load(path, map_location=self.device)
         self.load_state_dict(state_dict)
 
     def predict_sentences(self, test_dataset):
@@ -571,11 +575,11 @@ if __name__ == '__main__':
     # Read and index datasets
     train_set_path = os.path.join(os.getcwd(), 'MWE_train_without_names.tsv')
     training_set = TSVDatasetParser(train_set_path, _device=device)
-    word2idx_path = os.path.join(os.getcwd(), 'word_stoi.pkl')
+    word2idx_path = os.path.join(os.getcwd(),  'word_stoi.pkl')
     word2idx, idx2word = TSVDatasetParser.build_vocabulary(training_set.data_x,
                                                            word2idx_path)
 
-    pos2idx_path = os.path.join(os.getcwd(), 'pos_stoi.pkl')
+    pos2idx_path = os.path.join(os.getcwd(),  'pos_stoi.pkl')
     pos2idx, idx2pos = TSVDatasetParser.build_vocabulary(training_set.pos_x,
                                                          pos2idx_path)
     label2idx, idx2label = TSVDatasetParser.encode_labels()
@@ -608,27 +612,30 @@ if __name__ == '__main__':
     model = CRF_Model(hp).to(device)
 
     # Build training writer
-    log_path = os.path.join(os.getcwd(), 'runs', hp.model_name)
-    writer_ = WriterTensorboardX(log_path, logger=logging, enable=True)
+    # log_path = os.path.join(os.getcwd(), 'runs', hp.model_name)
+    # writer_ = WriterTensorboardX(log_path, logger=logging, enable=True)
 
     # Build trainer
-    trainer = CRF_Trainer(model=model, writer=writer_,
-                          loss_function=CrossEntropyLoss(
-                              ignore_index=label2idx['<PAD>']),
-                          optimizer=Adam(model.parameters()),
-                          label_vocab=label2idx)
+    # trainer = CRF_Trainer(model=model, writer=writer_,
+    #                       loss_function=CrossEntropyLoss(
+    #                           ignore_index=label2idx['<PAD>']),
+    #                       optimizer=Adam(model.parameters()),
+    #                       label_vocab=label2idx)
 
-    save_to_ = os.path.join(os.getcwd(), f"{model.name}_model.pt")
-    _ = trainer.train(train_dataset_, dev_dataset_,
-                      epochs=50, save_to=save_to_)
+    save_to_ = os.path.join(os.getcwd(),  f"{model.name}_model.pth")
+    model._load(save_to_)
+    # _ = trainer.train(train_dataset_, dev_dataset_,
+    #                   epochs=50, save_to=save_to_)
 
     test_set_path = os.path.join(os.getcwd(), path)
     test_set = TSVDatasetParser(test_set_path,
                                 _device=device,
                                 is_testing_data=True)
     test_set.encode_dataset(word2idx, label2idx, pos2idx)
+
     test_dataset_ = DataLoader(dataset=test_set, batch_size=batch_size,
                                collate_fn=TSVDatasetParser.pad_batch)
+
     predictions = model.predict_sentences(test_dataset_)
     preds = TSVDatasetParser.decode_predictions(predictions, idx2label)
     print_extracted_mwes(test_set, preds)
