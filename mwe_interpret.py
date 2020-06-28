@@ -132,14 +132,15 @@ class TSVDatasetParser(Dataset):
                 elif self.use_bert_tokenizer == True:
                     # print("sentence is", sentence)
                     encoding = bert_tokenizer.encode_plus(
-                    sentence,
-                    add_special_tokens=True, # Add '[CLS]' and '[SEP]'
-                    return_token_type_ids=False,
-                    return_attention_mask=False,
-                    return_tensors='pt'  # Return PyTorch tensors
-                    )      
+                        sentence,
+                        add_special_tokens=True,  # Add '[CLS]' and '[SEP]'
+                        return_token_type_ids=False,
+                        return_attention_mask=False,
+                        return_tensors='pt'  # Return PyTorch tensors
+                    )
                     # print("Tensor is", encoding['input_ids'])
-                    data_x_stoi.append(torch.squeeze(encoding['input_ids']).to(self.device))   
+                    data_x_stoi.append(torch.squeeze(
+                        encoding['input_ids']).to(self.device))
 
                 pos_x_stoi.append(torch.LongTensor(
                     [pos2idx.get(pos, 1) for pos in pos_sentence]).to(self.device))
@@ -244,24 +245,25 @@ class BERT_Trainer:
         scheduler = ReduceLROnPlateau(self.optimizer, 'min', patience=3)
         train_loss, best_val_loss = 0.0, float(1e4)
         for epoch in tqdm(range(1, epochs + 1), desc="Training"):
-        # for epoch in (range(1, epochs + 1)):
+            # for epoch in (range(1, epochs + 1)):
             epoch_loss = 0.0
             self.model.train()
             for step, sample in tqdm(enumerate(train_dataset), desc='Fit On Batches',
                                      leave=True, total=len(train_dataset)):
-            # for step, sample in enumerate(train_dataset):
+                # for step, sample in enumerate(train_dataset):
                 inputs, labels = sample['inputs'], sample['outputs']
                 mask = (inputs != 0).to(self._device, dtype=torch.uint8)
                 pos = sample['pos']
                 self.optimizer.zero_grad()
-                
+
                 predictions = self.model(inputs, mask, pos)
                 predictions = predictions.view(-1, predictions.shape[-1])
                 labels = labels.view(-1)
-                sample_loss = self.loss_function(predictions, labels)            
-                
+                sample_loss = self.loss_function(predictions, labels)
+
                 sample_loss.backward()
-                clip_grad_norm_(self.model.parameters(), 3.)  # Gradient Clipping
+                clip_grad_norm_(self.model.parameters(),
+                                3.)  # Gradient Clipping
                 self.optimizer.step()
                 epoch_loss += sample_loss.tolist()
 
@@ -306,12 +308,12 @@ class BERT_Trainer:
                 labels = sample['outputs']
                 pos = sample['pos']
                 mask = (inputs != 0).to(self._device, dtype=torch.uint8)
-                
+
                 predictions = self.model(inputs, mask, pos)
                 predictions = predictions.view(-1, predictions.shape[-1])
                 labels = labels.view(-1)
-                sample_loss = self.loss_function(predictions, labels) 
-                
+                sample_loss = self.loss_function(predictions, labels)
+
                 valid_loss += sample_loss.tolist()
         return valid_loss / len(valid_dataset)
 
@@ -328,17 +330,20 @@ class WriterTensorboardX():
         if enable:
             log_path = writer_dir
             try:
-                self.writer = importlib.import_module('tensorboardX').SummaryWriter(log_path)
+                self.writer = importlib.import_module(
+                    'tensorboardX').SummaryWriter(log_path)
             except ModuleNotFoundError:
                 message = """TensorboardX visualization is configured to use, but currently not installed on this machine. Please install the package by 'pip install tensorboardx' command or turn off the option in the 'configs.json' file."""
                 warnings.warn(message, UserWarning)
                 logger.warn(message)
                 os.system('pip install tensorboardX')
-                self.writer = importlib.import_module('tensorboardX').SummaryWriter(log_path)
+                self.writer = importlib.import_module(
+                    'tensorboardX').SummaryWriter(log_path)
         self.step = 0
         self.mode = ''
 
-        self.tensorboard_writer_ftns = ['add_scalar', 'add_scalars', 'add_image', 'add_audio', 'add_text', 'add_histogram', 'add_pr_curve', 'add_embedding']
+        self.tensorboard_writer_ftns = ['add_scalar', 'add_scalars', 'add_image',
+                                        'add_audio', 'add_text', 'add_histogram', 'add_pr_curve', 'add_embedding']
 
     def set_step(self, step, mode='train'):
         self.mode = mode
@@ -353,17 +358,21 @@ class WriterTensorboardX():
         """
         if name in self.tensorboard_writer_ftns:
             add_data = getattr(self.writer, name, None)
+
             def wrapper(tag, data, *args, **kwargs):
                 if add_data is not None:
-                    add_data('{}/{}'.format(self.mode, tag), data, self.step, *args, **kwargs)
+                    add_data('{}/{}'.format(self.mode, tag),
+                             data, self.step, *args, **kwargs)
             return wrapper
         else:
             # default action for returning methods defined in this class, set_step() for instance.
             try:
                 attr = object.__getattr__(name)
             except AttributeError:
-                raise AttributeError("type object 'WriterTensorboardX' has no attribute '{}'".format(name))
+                raise AttributeError(
+                    "type object 'WriterTensorboardX' has no attribute '{}'".format(name))
             return attr
+
 
 class HyperParameters:
     def __init__(self, model_name_, vocab, label_vocab,
@@ -396,13 +405,14 @@ class HyperParameters:
               f"POS Pretrained_embeddings: {False if self.pos_embeddings is None else True}",
               f"Batch Size: {self.batch_size}", sep='\n')
 
+
 class BERT_Model(nn.Module):
-  
     def __init__(self, hparams):
         super(BERT_Model, self).__init__()
 
         self.name = hparams.model_name
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device(
+            'cuda' if torch.cuda.is_available() else 'cpu')
 
         model_name = 'bert-base-multilingual-cased'
         self.bert = BertModel.from_pretrained(model_name)
@@ -412,57 +422,45 @@ class BERT_Model(nn.Module):
         self.pos_embedding = nn.Embedding(
             hparams.pos_vocab_size, hparams.embedding_dim, padding_idx=0)
         self.pos_dropout = nn.Dropout(hparams.dropout)
-            
-        lstm_input_dim += hparams.embedding_dim    
 
-        self.lstm = nn.LSTM(lstm_input_dim, hparams.hidden_dim, 
+        lstm_input_dim += hparams.embedding_dim
+
+        self.lstm = nn.LSTM(lstm_input_dim, hparams.hidden_dim,
                             batch_first=True,
                             bidirectional=hparams.bidirectional,
-                            num_layers=hparams.num_layers, 
-                            dropout = hparams.dropout if hparams.num_layers > 1 else 0)
+                            num_layers=hparams.num_layers,
+                            dropout=hparams.dropout if hparams.num_layers > 1 else 0)
 
         lstm_output_dim = hparams.hidden_dim if hparams.bidirectional is False else hparams.hidden_dim * 2
 
         self.dropout = nn.Dropout(hparams.dropout)
 
         self.classifier = nn.Linear(lstm_output_dim, hparams.num_classes)
-  
+
     def forward(self, sequences, attention_mask, pos_sequences):
-        
+
         bert_hidden_layer, _ = self.bert(
-        input_ids=sequences,
-        attention_mask=attention_mask
+            input_ids=sequences,
+            attention_mask=attention_mask
         )
 
         non_zeros = (sequences != 0).sum(dim=1).tolist()
 
         reconst = []
         for idx in range(len(non_zeros)):
-            # print("no zeros", non_zeros[idx])
-            # print("inputs ", sequences[idx])
-            # print("sliced", sequences[idx, 1:non_zeros[idx]-1])
-            reconst.append(bert_hidden_layer[idx, 1:non_zeros[idx]-1, :]) # correct one
-        # print("reconst", reconst)
-        # print("shape of every elem in 'reconst'", [t.shape for t in reconst])
+            reconst.append(bert_hidden_layer[idx, 1:non_zeros[idx]-1, :])
 
-        padded_again = torch.nn.utils.rnn.pad_sequence(reconst, batch_first=True, padding_value=0)
-        # print("\n")
-        # print("padded again shape", padded_again.shape)
+        padded_again = torch.nn.utils.rnn.pad_sequence(
+            reconst, batch_first=True, padding_value=0)
 
         pos_embeddings = self.pos_embedding(pos_sequences)
         pos_embeddings_ = self.pos_dropout(pos_embeddings)
-        # print("pos embed shape", pos_embeddings_.shape)
-        
-        embeds_ = torch.cat((padded_again, pos_embeddings_), dim=-1)
-        # print("concat shape", embeds_.shape)
 
+        embeds_ = torch.cat((padded_again, pos_embeddings_), dim=-1)
 
         o, _ = self.lstm(embeds_)
         o = self.dropout(o)
         logits = self.classifier(o)
-        # print("logits / network output shape", logits.shape)
-        # print("\n")
-
         return logits
 
     def _save(self, model_path):
@@ -471,17 +469,13 @@ class BERT_Model(nn.Module):
         torch.save(self.state_dict(), model_checkpoint)
 
     def _load(self, path):
-        # print("\n\n bBAAAAAAAAAAAAAA ", path)
-        # print("\n\n device is ", self.device)
         if self.device == 'cuda':
-            # print("\n\n Loading from", path)
-            # print("device is", self.device)
             model_state_dict = torch.load(path)
         else:
             model_state_dict = torch.load(path, map_location=self.device)
         model_name = 'bert-base-multilingual-cased'
-        loaded_model = BertModel.from_pretrained(model_name, state_dict=model_state_dict)
-        # self.load_state_dict(state_dict)
+        loaded_model = BertModel.from_pretrained(
+            model_name, state_dict=model_state_dict)
         return loaded_model
 
     def print_summary(self, show_weights=False, show_parameters=False):
@@ -515,12 +509,11 @@ class BERT_Model(nn.Module):
         print('==================================================')
 
 
-
 def flat_list(l: List[List[Any]]) -> List[Any]:
     return [_e for e in l for _e in e]
 
+
 class Evaluator:
-    # TODO: Check predict sentences torch.no_grad
     def __init__(self, model, test_dataset, t_data, idx2label):
         self.model = model
         self.model.eval()
@@ -538,11 +531,9 @@ class Evaluator:
         all_labels = list()
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         with torch.no_grad():
-            # for step, samples in tqdm(enumerate(self.test_dataset), desc="Predicting batches of data", leave=False):
             for step, samples in (enumerate(self.test_dataset)):
                 inputs, labels = samples['inputs'], samples['outputs']
 
-                # print((labels != 0).sum(dim=1).tolist())
                 original_len.extend((labels != 0).sum(dim=1).tolist())
 
                 mask = (inputs != 0).to(device, dtype=torch.uint8)
@@ -559,43 +550,35 @@ class Evaluator:
                 all_predictions.extend(valid_predictions.tolist())
                 all_labels.extend(valid_labels.tolist())
 
-        reconstructed_predictions = []                    
+        reconstructed_predictions = []
         var = 0
         for c_idx in range(len(original_len)):
-            reconstructed_predictions.append(all_predictions[var:var+original_len[c_idx]])
+            reconstructed_predictions.append(
+                all_predictions[var:var+original_len[c_idx]])
             var += original_len[c_idx]
 
         eval_file = "{}/Prediction_vs_GroundTruth.txt".format(".")
         s_op_file = open(eval_file, "w", encoding="utf8")
-        
-        # for batch  in self.test_dataset:
-            # for inp, label, prediction in zip(batch["inputs"], batch["outputs"], reconstructed_predictions):
-        for sentence, label, prediction in zip(self.data.data_x, self.data.data_y, reconstructed_predictions): 
-                
-                # print(sentence, len(sentence))
-                # print(label, len(label))
-                # print(prediction, len(prediction))
-                # print("\n")
 
-                s_op_file.write("sen:")
-                for token in sentence:
-                    s_op_file.write(token + " ")
-                s_op_file.write("\n")
+        for sentence, label, prediction in zip(self.data.data_x, self.data.data_y, reconstructed_predictions):
+            s_op_file.write("sen:")
+            for token in sentence:
+                s_op_file.write(token + " ")
+            s_op_file.write("\n")
 
+            s_op_file.write("org:")
+            for word in label:
+                s_op_file.write(word + " ")
+            s_op_file.write("\n")
 
-                s_op_file.write("org:")
-                for word in label:
-                    s_op_file.write(word + " ")
-                s_op_file.write("\n")
+            s_op_file.write("pre:")
+            for p in prediction:
+                s_op_file.write(str(self.idx2label[p]) + " ")
+            s_op_file.write("\n")
+            s_op_file.write("\n")
 
-                s_op_file.write("pre:")
-                for p in prediction:
-                    s_op_file.write(str(self.idx2label[p]) + " ")
-                s_op_file.write("\n")
-                s_op_file.write("\n")
-                
-                assert len(label) == len(prediction)
-        
+            assert len(label) == len(prediction)
+
         # global precision. Does take class imbalance into account.
         self.micro_scores = precision_recall_fscore_support(all_labels, all_predictions,
                                                             average="micro")
@@ -615,13 +598,15 @@ class Evaluator:
         fig = plt.figure(figsize=(10, 7))
         axes = fig.add_subplot(111)
         sn.set(font_scale=1.4)  # for label size
-        sn.heatmap(df_cm, annot=True, annot_kws={"size": 16}, ax=axes)  # font size
+        sn.heatmap(df_cm, annot=True, annot_kws={
+                   "size": 16}, ax=axes)  # font size
         axes.set_xlabel('Predicted labels')
         axes.set_ylabel('True labels')
         axes.set_title('Confusion Matrix')
         axes.xaxis.set_ticklabels(['B', 'I', 'O'])
         axes.yaxis.set_ticklabels(['B', 'I', 'O'])
-        save_to = os.path.join(os.getcwd(), "model", f"{self.model.name}_confusion_matrix.png")
+        save_to = os.path.join(os.getcwd(), "model",
+                               f"{self.model.name}_confusion_matrix.png")
         plt.savefig(save_to)
         plt.show()
 
@@ -629,34 +614,31 @@ class Evaluator:
         self.compute_scores()
         p, r, f, _ = self.macro_scores
         print("=" * 30)
-        print(f'Macro Precision: {p:0.4f}, Macro Recall: {r:0.4f}, Macro F1 Score: {f:0.4f}')
+        print(
+            f'Macro Precision: {p:0.4f}, Macro Recall: {r:0.4f}, Macro F1 Score: {f:0.4f}')
 
         eval_file = "{}/Prediction_vs_GroundTruth.txt".format(".")
         s_op_file = open(eval_file, "a", encoding="utf8")
         s_op_file.write("=" * 30)
         s_op_file.write("\n")
-        s_op_file.write(f'Macro Precision: {p:0.4f}, Macro Recall: {r:0.4f}, Macro F1 Score: {f:0.4f}')
+        s_op_file.write(
+            f'Macro Precision: {p:0.4f}, Macro Recall: {r:0.4f}, Macro F1 Score: {f:0.4f}')
         s_op_file.write("\n")
 
         print("=" * 30)
         print("Per class Precision:")
-        # for idx_class, precision in sorted(enumerate(self.class_scores, start=0), key=lambda elem: -elem[1]):
         for idx_class, precision in enumerate(self.class_scores, start=1):
-            # print("class score is", self.class_scores)
-            # print(idx2label)
-            # print("class is", idx_class)
-            # if idx_class == 0:
-            #     continue
-            # else:
             label = idx2label[idx_class]
             print(f'{label}: {precision}')
 
         print("=" * 30)
         micro_p, micro_r, micro_f, _ = self.micro_scores
-        print(f'Micro Precision: {micro_p:0.4f}, Micro Recall: {micro_r:0.4f}, Micro F1 Score: {micro_f:0.4f}')
+        print(
+            f'Micro Precision: {micro_p:0.4f}, Micro Recall: {micro_r:0.4f}, Micro F1 Score: {micro_f:0.4f}')
         print("=" * 30)
 
-        s_op_file.write(f'Micro Precision: {micro_p:0.4f}, Micro Recall: {micro_r:0.4f}, Micro F1 Score: {micro_f:0.4f}')
+        s_op_file.write(
+            f'Micro Precision: {micro_p:0.4f}, Micro Recall: {micro_r:0.4f}, Micro F1 Score: {micro_f:0.4f}')
         s_op_file.write("\n")
         s_op_file.write("=" * 30)
 
@@ -674,12 +656,11 @@ def configure_workspace(SEED=1873337):
                         datefmt='%H:%M:%S', level=logging.INFO)
 
 
-
 if __name__ == '__main__':
 
     pretrained_word_embeddings = True
     pretrained_pos_embeddings = True
-    model_architecture = "bert" # baseline # crf
+    model_architecture = "bert"  # baseline # crf
 
     configure_workspace()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -690,13 +671,12 @@ if __name__ == '__main__':
     # Set Hyper-parameters
     batch_size = 32 if model_architecture == "bert" else 128
 
-    # name_ = 'BERT_Model_with_Bilingual_Embeddings_&_POS'
-    # name_ = 'BERT_Grad_Clip_of_3_lr_of_5e7'
     name_ = 'BERT_Grad_Clip_of_3_lr_of_5e6'
 
     train_set_path = os.path.join(
         os.getcwd(), 'data', 'MWE_train_without_names.tsv')
-    training_set = TSVDatasetParser(train_set_path, _device=device, tokenize_for_bert=True)
+    training_set = TSVDatasetParser(
+        train_set_path, _device=device, tokenize_for_bert=True)
     word2idx_path = os.path.join(os.getcwd(), 'model', 'word_stoi.pkl')
     word2idx, idx2word = TSVDatasetParser.build_vocabulary(
         training_set.data_x, word2idx_path)
@@ -709,12 +689,13 @@ if __name__ == '__main__':
 
     dev_set_path = os.path.join(
         os.getcwd(), 'data', 'MWE_dev_without_names.tsv')
-    dev_set = TSVDatasetParser(dev_set_path, _device=device, tokenize_for_bert=True)
+    dev_set = TSVDatasetParser(
+        dev_set_path, _device=device, tokenize_for_bert=True)
     dev_set.encode_dataset(word2idx, label2idx, pos2idx)
 
     hp = HyperParameters(name_, word2idx, label2idx, pos2idx,
-                            pretrained_embeddings_,
-                            pos_embeddings_, batch_size)
+                         pretrained_embeddings_,
+                         pos_embeddings_, batch_size)
     # hp._print_info()
 
     # Prepare data loaders
@@ -722,7 +703,7 @@ if __name__ == '__main__':
                                 collate_fn=TSVDatasetParser.pad_batch,
                                 shuffle=True)
     dev_dataset_ = DataLoader(dataset=dev_set, batch_size=batch_size,
-                                collate_fn=TSVDatasetParser.pad_batch)
+                              collate_fn=TSVDatasetParser.pad_batch)
     # Create and train model
     model = BERT_Model(hp).to(device)
     # model.print_summary()
@@ -731,20 +712,22 @@ if __name__ == '__main__':
     writer_ = WriterTensorboardX(log_path, logger=logging, enable=True)
 
     trainer = BERT_Trainer(model=model, writer=writer_,
-                            loss_function=CrossEntropyLoss(
-                                ignore_index=label2idx['<PAD>']),
-                            optimizer=Adam(model.parameters(), lr=5e-7),
-                            label_vocab=label2idx)
+                           loss_function=CrossEntropyLoss(
+                               ignore_index=label2idx['<PAD>']),
+                           optimizer=Adam(model.parameters(), lr=5e-7),
+                           label_vocab=label2idx)
 
     # save_to_ = os.path.join(os.getcwd(), 'model', f"{model.name}_model.pt")
-    save_to_ = os.path.join(os.getcwd(), "model", f"{model.name}_ckpt_best.pth")
-    print("\n\n\n\nSAVE TO\n\n\n", save_to_)
+    save_to_ = os.path.join(os.getcwd(), "model",
+                            f"{model.name}_ckpt_best.pth")
+
     # model = model._load(save_to_)
-    # _ = trainer.train(train_dataset_, dev_dataset_, epochs=50, save_to=save_to_)
-    
+    _ = trainer.train(train_dataset_, dev_dataset_,
+                      epochs=50, save_to=save_to_)
+
     # Load model in eval mode
     state_dict = torch.load(save_to_, map_location=device)
-    model.load_state_dict(state_dict)    
+    model.load_state_dict(state_dict)
     model.to(device)
     # # model.eval()
 

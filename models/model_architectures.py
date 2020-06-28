@@ -208,13 +208,14 @@ class CRF_Model(nn.Module):
         print(f"Params #: {'{:,}'.format(num_params)}")
         print('==================================================')
 
+
 class BERT_Model(nn.Module):
-  
     def __init__(self, hparams):
         super(BERT_Model, self).__init__()
 
         self.name = hparams.model_name
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device(
+            'cuda' if torch.cuda.is_available() else 'cpu')
 
         model_name = 'bert-base-multilingual-cased'
         self.bert = BertModel.from_pretrained(model_name)
@@ -224,26 +225,26 @@ class BERT_Model(nn.Module):
         self.pos_embedding = nn.Embedding(
             hparams.pos_vocab_size, hparams.embedding_dim, padding_idx=0)
         self.pos_dropout = nn.Dropout(hparams.dropout)
-            
-        lstm_input_dim += hparams.embedding_dim    
 
-        self.lstm = nn.LSTM(lstm_input_dim, hparams.hidden_dim, 
+        lstm_input_dim += hparams.embedding_dim
+
+        self.lstm = nn.LSTM(lstm_input_dim, hparams.hidden_dim,
                             batch_first=True,
                             bidirectional=hparams.bidirectional,
-                            num_layers=hparams.num_layers, 
-                            dropout = hparams.dropout if hparams.num_layers > 1 else 0)
+                            num_layers=hparams.num_layers,
+                            dropout=hparams.dropout if hparams.num_layers > 1 else 0)
 
         lstm_output_dim = hparams.hidden_dim if hparams.bidirectional is False else hparams.hidden_dim * 2
 
         self.dropout = nn.Dropout(hparams.dropout)
 
         self.classifier = nn.Linear(lstm_output_dim, hparams.num_classes)
-  
+
     def forward(self, sequences, attention_mask, pos_sequences):
-        
+
         bert_hidden_layer, _ = self.bert(
-        input_ids=sequences,
-        attention_mask=attention_mask
+            input_ids=sequences,
+            attention_mask=attention_mask
         )
 
         non_zeros = (sequences != 0).sum(dim=1).tolist()
@@ -253,21 +254,22 @@ class BERT_Model(nn.Module):
             # print("no zeros", non_zeros[idx])
             # print("inputs ", sequences[idx])
             # print("sliced", sequences[idx, 1:non_zeros[idx]-1])
-            reconst.append(bert_hidden_layer[idx, 1:non_zeros[idx]-1, :]) # correct one
+            # correct one
+            reconst.append(bert_hidden_layer[idx, 1:non_zeros[idx]-1, :])
         # print("reconst", reconst)
         # print("shape of every elem in 'reconst'", [t.shape for t in reconst])
 
-        padded_again = torch.nn.utils.rnn.pad_sequence(reconst, batch_first=True, padding_value=0)
+        padded_again = torch.nn.utils.rnn.pad_sequence(
+            reconst, batch_first=True, padding_value=0)
         # print("\n")
         # print("padded again shape", padded_again.shape)
 
         pos_embeddings = self.pos_embedding(pos_sequences)
         pos_embeddings_ = self.pos_dropout(pos_embeddings)
         # print("pos embed shape", pos_embeddings_.shape)
-        
+
         embeds_ = torch.cat((padded_again, pos_embeddings_), dim=-1)
         # print("concat shape", embeds_.shape)
-
 
         o, _ = self.lstm(embeds_)
         o = self.dropout(o)
@@ -292,7 +294,8 @@ class BERT_Model(nn.Module):
         else:
             model_state_dict = torch.load(path, map_location=self.device)
         model_name = 'bert-base-multilingual-cased'
-        loaded_model = BertModel.from_pretrained(model_name, state_dict=model_state_dict)
+        loaded_model = BertModel.from_pretrained(
+            model_name, state_dict=model_state_dict)
         # self.load_state_dict(state_dict)
         return loaded_model
 
@@ -325,4 +328,3 @@ class BERT_Model(nn.Module):
                          for p in self.parameters() if p.requires_grad)
         print(f"Params #: {'{:,}'.format(num_params)}")
         print('==================================================')
-

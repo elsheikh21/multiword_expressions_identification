@@ -176,24 +176,25 @@ class BERT_Trainer:
         scheduler = ReduceLROnPlateau(self.optimizer, 'min', patience=3)
         train_loss, best_val_loss = 0.0, float(1e4)
         for epoch in tqdm(range(1, epochs + 1), desc="Training"):
-        # for epoch in (range(1, epochs + 1)):
+            # for epoch in (range(1, epochs + 1)):
             epoch_loss = 0.0
             self.model.train()
             for step, sample in tqdm(enumerate(train_dataset), desc='Fit On Batches',
                                      leave=True, total=len(train_dataset)):
-            # for step, sample in enumerate(train_dataset):
+                # for step, sample in enumerate(train_dataset):
                 inputs, labels = sample['inputs'], sample['outputs']
                 mask = (inputs != 0).to(self._device, dtype=torch.uint8)
                 pos = sample['pos']
                 self.optimizer.zero_grad()
-                
+
                 predictions = self.model(inputs, mask, pos)
                 predictions = predictions.view(-1, predictions.shape[-1])
                 labels = labels.view(-1)
-                sample_loss = self.loss_function(predictions, labels)            
-                
+                sample_loss = self.loss_function(predictions, labels)
+
                 sample_loss.backward()
-                clip_grad_norm_(self.model.parameters(), 3.)  # Gradient Clipping
+                clip_grad_norm_(self.model.parameters(),
+                                3.)  # Gradient Clipping
                 self.optimizer.step()
                 epoch_loss += sample_loss.tolist()
 
@@ -238,11 +239,11 @@ class BERT_Trainer:
                 labels = sample['outputs']
                 pos = sample['pos']
                 mask = (inputs != 0).to(self._device, dtype=torch.uint8)
-                
+
                 predictions = self.model(inputs, mask, pos)
                 predictions = predictions.view(-1, predictions.shape[-1])
                 labels = labels.view(-1)
-                sample_loss = self.loss_function(predictions, labels) 
-                
+                sample_loss = self.loss_function(predictions, labels)
+
                 valid_loss += sample_loss.tolist()
         return valid_loss / len(valid_dataset)
